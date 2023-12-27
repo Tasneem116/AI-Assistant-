@@ -1,3 +1,7 @@
+# (Application Programming Interfaces) are interfaces that allow different software applications
+# to communicate with each other.
+
+
 import holidays
 from PyQt5.QtCore import QThread, pyqtSignal
 # Importing necessary libraries
@@ -286,7 +290,8 @@ def get_upcoming_events():
     except Exception as e:
         print(f"An error occurred: {e}")
 
-# This code uses a service account to authenticate with the Google Calendar API,
+
+# Uses a service account to authenticate with the Google Calendar API,
 # fetches upcoming events from a specific calendar,
 # formats the event details,
 # handles cases with no upcoming events,
@@ -376,6 +381,7 @@ class MainThread(QThread):
                       'health']
         user = self.takeCommand()
         self.user_signal.emit(user)
+
         for i in user.split():
             if i in categories:
                 category += i
@@ -383,16 +389,23 @@ class MainThread(QThread):
         headlines_message = f'Here are the top headlines on {category}'
         self.assistant_signal.emit(headlines_message)
         say(headlines_message)
+
         with urllib.request.urlopen(url) as response:
             data = json.loads(response.read().decode("utf-8"))
             articles = data["articles"]
-            for i in range(3):
-                title = f"Title: {articles[i]['title']}"
+            # for i in range(3):
+            if articles:
+                first_article = articles[0]
+                title = f"Title: {first_article['title']}"
                 self.assistant_signal.emit(title)
                 say(title)
-                description = f"Description: {articles[i]['description']}"
+                description = f"Description: {first_article['description']}"
                 self.assistant_signal.emit(description)
                 say(description)
+            else:
+                self.assistant_signal.emit(f"No articles found for the {category} category.")
+                say(f"No articles found for the {category} category.")
+
 
     # to send whatsapp messages
     def whatsapp_message(self):
@@ -599,7 +612,7 @@ class MainThread(QThread):
             self.assistant_signal.emit(assistant_response)
             say(assistant_response)
             webbrowser.open(
-                'https://blr1.blynk.cloud/external/api/update?token=-3sDYRzGHMZURla3YKXiDIlHjY00jG9W&v4=1')  # on light
+                'https://blr1.blynk.cloud/external/api/update?token=-3sDYRzGHMZURla3YKXiDIlHjY00jG9W&v4=0')  # on light
             time.sleep(2)
             # keyword.press_and_release('ctrl + w')
 
@@ -608,8 +621,8 @@ class MainThread(QThread):
             assistant_response = 'Turning off back yellow lights as requested'
             self.assistant_signal.emit(assistant_response)
             say(assistant_response)
-            webbrowser.open(
-                'https://blr1.blynk.cloud/external/api/update?token=-3sDYRzGHMZURla3YKXiDIlHjY00jG9W&v4=0')  # on light
+            webbrowser.open('https://blr1.blynk.cloud/external/api/update?token=-3sDYRzGHMZURla3YKXiDIlHjY00jG9W&v4=1')
+                  # on light
             time.sleep(2)
             # keyword.press_and_release('ctrl + w')
 
@@ -753,15 +766,19 @@ class MainThread(QThread):
                 self.assistant_signal.emit(start_time_message)
                 say(start_time_message)
 
-                start_time = self.takeCommand()
-                self.user_signal.emit(start_time)
+                start_time_str = self.takeCommand()
+                self.user_signal.emit(start_time_str)
 
                 end_time_message = 'Can you tell me the end time for the event in Hours:Minutes format '
                 self.assistant_signal.emit(end_time_message)
                 say(end_time_message)
 
-                end_time = self.takeCommand()
-                self.user_signal.emit(end_time)
+                end_time_str = self.takeCommand()
+                self.user_signal.emit(end_time_str)
+
+                # Parse start and end times
+                start_time = parse(start_time_str).strftime('%H:%M')
+                end_time = parse(end_time_str).strftime('%H:%M')
 
                 event = {
                     'summary': summary,
@@ -788,6 +805,40 @@ class MainThread(QThread):
 
         except Exception as e:
             print(f"An error occurred while creating the event: {e}")
+
+    # to check if the user in the event
+    def check_upcoming_events(self):
+        # Authenticate with Google Calendar API
+        credentials = service_account.Credentials.from_service_account_file(
+            "C://Users//Dell//Desktop//calendar json//sincere-scheme-406105-3eef3c680c94.json",
+            scopes=['https://www.googleapis.com/auth/calendar']
+        )
+        service = build('calendar', 'v3', credentials=credentials)
+
+        # Get the current time
+        current_time = datetime.utcnow().isoformat() + 'Z'
+
+        # Query for upcoming events
+        events_result = service.events().list(
+            calendarId='syedatasneem958@gmail.com',
+            timeMin=current_time,
+            maxResults=1,
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute()
+
+        events = events_result.get('items', [])
+
+        if events:
+            # Check if there's an event overlapping with the current time
+            start_time = parse(events[0]['start']['dateTime'])
+            end_time = parse(events[0]['end']['dateTime'])
+            if start_time <= datetime.utcnow() <= end_time:
+                return f"You are already in a meeting event: {events[0]['summary']} from {start_time.strftime('%H:%M')} to {end_time.strftime('%H:%M')}"
+            else:
+                return "You don't have any upcoming events at the moment."
+        else:
+            return "You don't have any upcoming events at the moment."
 
     # To perform tasks
     def perform_task(self):
@@ -1032,16 +1083,20 @@ class MainThread(QThread):
                         jarvis.close()
                         exit()
 
+
     def user_queries(self, query):
         # Emit a signal to update the UI in the main thread
         self.user_signal.emit(query)
+
 
     def assistant_queries(self, assistant_response):
         # Emit a signal to update the UI in the main thread
         self.assistant_signal.emit(assistant_response)
 
+
     def whatsapp_numbers(self, numbers):
         self.msg_signal.emit(numbers)
+
 
     def mail_address(self, mail):
         self.mail_signal.emit(mail)
@@ -1129,5 +1184,3 @@ jarvis = Main()
 jarvis.show()
 exit(app.exec_())
 
-
-# return event after creation should say only event created should not show wht event is created
